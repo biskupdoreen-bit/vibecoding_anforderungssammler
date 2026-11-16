@@ -1,0 +1,82 @@
+[
+  {
+    "id": 1,
+    "titel": "Export als PDF",
+    "nutzen": "Nutzen von Export als PDF für den Fachbereich (größere Übersicht, weniger Rückfragen).",
+    "prioritaet": "Should",
+    "akzeptanzkriterium": "Bericht lässt sich als PDF speichern",
+    "ansprechperson": "team-berichte",
+    "rueckfrage": "",
+    "bestaetigt": false
+  },
+  {
+    "id": 2,
+    "titel": "Single Sign-on",
+    "nutzen": "Nutzen von Single Sign-on für den Fachbereich (größere Übersicht, weniger Rückfragen).",
+    "prioritaet": "Must",
+    "akzeptanzkriterium": "",
+    "ansprechperson": "team-it",
+    "rueckfrage": "",
+    "bestaetigt": false
+  },
+  {
+    "id": 3,
+    "titel": "Dunkler Modus",
+    "nutzen": "Nutzen von Dunkler Modus für den Fachbereich (größere Übersicht, weniger Rückfragen).",
+    "prioritaet": "Could",
+    "akzeptanzkriterium": "Umschalter in den Einstellungen",
+    "ansprechperson": "team-design",
+    "rueckfrage": "",
+    "bestaetigt": false
+  },
+  {
+    "id": 4,
+    "titel": "Mobile Ansicht",
+    "nutzen": "Nutzen von Mobile Ansicht für den Fachbereich (größere Übersicht, weniger Rückfragen).",
+    "prioritaet": "Should",
+    "akzeptanzkriterium": "Seite nutzbar ab 360 px Breite",
+    "ansprechperson": "",
+    "rueckfrage": "",
+    "bestaetigt": false
+  },
+  {
+    "id": 5,
+    "titel": "Archivfunktion",
+    "nutzen": "Nutzen von Archivfunktion für den Fachbereich (größere Übersicht, weniger Rückfragen).",
+    "prioritaet": "Won't",
+    "akzeptanzkriterium": "Einträge lassen sich archivieren",
+    "ansprechperson": "team-archiv",
+    "rueckfrage": "",
+    "bestaetigt": false
+  },
+  {
+    "id": 6,
+    "titel": "Rollenkonzept",
+    "nutzen": "Nutzen von Rollenkonzept für den Fachbereich (größere Übersicht, weniger Rückfragen).",
+    "prioritaet": "Must",
+    "akzeptanzkriterium": "Rollen sind pro Nutzer zuweisbar",
+    "ansprechperson": "team-it",
+    "rueckfrage": "",
+    "bestaetigt": false
+  },
+  {
+    "id": 7,
+    "titel": "Dunkler Modus",
+    "nutzen": "Nutzen von Dunkler Modus für den Fachbereich (größere Übersicht, weniger Rückfragen).",
+    "prioritaet": "Could",
+    "akzeptanzkriterium": "Umschalter in den Einstellungen",
+    "ansprechperson": "team-design",
+    "rueckfrage": "",
+    "bestaetigt": false
+  },
+  {
+    "id": 8,
+    "titel": "Suchfunktion",
+    "nutzen": "Nutzen von Suchfunktion für den Fachbereich (größere Übersicht, weniger Rückfragen).",
+    "prioritaet": "Should",
+    "akzeptanzkriterium": "Suche findet Titel und Nutzen",
+    "ansprechperson": "team-portal",
+    "rueckfrage": "",
+    "bestaetigt": true
+  }
+]
