@@ -1,5 +1,7 @@
 """Fachregeln: Validierung, Status, Warnungen. Keine Abhängigkeit zur Oberfläche."""
 
+from typing import Optional
+
 PRIORITAETEN = ["Must", "Should", "Could", "Won't"]
 GRENZEN = {"titel": 100, "nutzen": 500, "akzeptanzkriterium": 300, "rueckfrage": 300}
 NAMEN = {
@@ -46,7 +48,7 @@ def _norm(titel: str) -> str:
     return " ".join(titel.split()).casefold()
 
 
-def warnungen(eintrag: dict, bestehende: list[dict], eigene_id: int | None = None) -> list[str]:
+def warnungen(eintrag: dict, bestehende: list[dict], eigene_id: Optional[int] = None) -> list[str]:
     warn = []
     titel = _norm(eintrag["titel"])
     if any(_norm(e["titel"]) == titel and e["id"] != eigene_id for e in bestehende):

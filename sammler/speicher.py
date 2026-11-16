@@ -2,6 +2,7 @@
 import json
 import os
 import threading
+from typing import Optional
 from pathlib import Path
 
 _sperre = threading.Lock()
@@ -34,7 +35,7 @@ def hinzufuegen(eintrag: dict) -> dict:
         return eintrag
 
 
-def aendern(eintrag_id: int, aenderungen: dict) -> dict | None:
+def aendern(eintrag_id: int, aenderungen: dict) -> Optional[dict]:
     with _sperre:
         eintraege = laden()
         for e in eintraege:
