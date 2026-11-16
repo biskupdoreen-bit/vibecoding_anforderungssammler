@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Anforderungs-Sammler</title>
+<style>
+body{font-family:system-ui,sans-serif;max-width:52rem;margin:0 auto;padding:1rem;line-height:1.45;color:#222}
+nav{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem}
+nav a{padding:.4rem .9rem;border:1px solid #888;border-radius:6px;text-decoration:none;color:#222}
+nav a.haupt{background:#1a5fb4;border-color:#1a5fb4;color:#fff}
+.fehler{background:#fde8e8;border:1px solid #c33;padding:.5rem 1rem;border-radius:6px}
+.warnung{background:#fff6d6;border:1px solid #c90;padding:.5rem 1rem;border-radius:6px}
+.erfolg{background:#e3f6e3;border:1px solid #3a3;padding:.5rem 1rem;border-radius:6px}
+.info{background:#eef3fa;padding:.5rem 1rem;border-radius:6px}
+.karte{border:1px solid #ccc;border-radius:6px;padding:.6rem 1rem;margin:.6rem 0}
+.karte.rot{border-left:6px solid #c33}.karte.blau{border-left:6px solid #1a5fb4}.karte.gruen{border-left:6px solid #3a3}
+.badge{font-size:.85rem;font-weight:600;padding:.1rem .6rem;border-radius:1rem;color:#fff;margin-left:.4rem}
+.badge.rot{background:#c33}.badge.blau{background:#1a5fb4}.badge.gruen{background:#2a8a2a}
+.hint{color:#555;font-size:.9rem;margin:.1rem 0}.klein{font-size:.9rem;color:#555}
+label{display:block;margin:.8rem 0 .1rem;font-weight:600}
+input,textarea,select{width:100%;box-sizing:border-box;font:inherit;padding:.4rem}
+button,.knopf{margin-top:1rem;font:inherit;padding:.45rem 1.1rem;border-radius:6px;border:1px solid #888;background:#f4f4f4;cursor:pointer;text-decoration:none;color:#222;display:inline-block}
+button.haupt,.knopf.haupt{background:#1a5fb4;color:#fff;border-color:#1a5fb4}
+ul{margin:.3rem 0;padding-left:1.2rem}
+footer{margin-top:2rem;padding-top:.8rem;border-top:1px solid #ddd}
+</style></head><body>
+<nav><a href="#/">Übersicht</a><a class="haupt" href="#/neu">Neue Anforderung erfassen</a>
+<a href="#/pm">Für das Projektmanagement</a></nav>
+<div id="app"></div>
+<footer class="klein">Beispielanwendung. Die Einträge werden nur in <strong>diesem Browser</strong> gespeichert
+(andere Personen sehen sie nicht). <a href="#/" id="reset">Beispieldaten neu laden</a></footer>
+<script>
+"use strict";
+const PRIOS = ["Must", "Should", "Could", "Won't"];
+const PRIO_TEXT = {"Must": "zwingend nötig", "Should": "wichtig, aber nicht zwingend",
+  "Could": "wünschenswert, wenn Zeit bleibt", "Won't": "diesmal bewusst nicht"};
+const GRENZEN = {titel: 100, nutzen: 500, akzeptanzkriterium: 300, rueckfrage: 300};
+const NAMEN = {titel: "Titel", nutzen: "Nutzen", prioritaet: "Priorität",
+  akzeptanzkriterium: "Akzeptanzkriterium", rueckfrage: "Rückfrage"};
+const STATUS_TEXT = {"Rückfrage": "Angaben fehlen – bitte ergänzen",
+  "Vollständig": "Alles da – wartet auf die Prüfung durch das Projektmanagement",
+  "Priorisiert": "Vom Projektmanagement bestätigt"};
+const KLASSE = {"Rückfrage": "rot", "Vollständig": "blau", "Priorisiert": "gruen"};
+const KEY = "anforderungs-sammler-daten";
+
+// ---------- Regeln (gleich wie in sammler/regeln.py) ----------
+function bereinigen(f) {
+  const o = {};
+  for (const k of ["titel", "nutzen", "prioritaet", "ansprechperson", "akzeptanzkriterium"]) o[k] = (f[k] || "").trim();
+  return o;
+}
+function validieren(e) {
+  const fehler = [];
+  for (const k of ["titel", "nutzen", "prioritaet"]) if (!e[k]) fehler.push(NAMEN[k] + " ist ein Pflichtfeld.");
+  if (e.prioritaet && !PRIOS.includes(e.prioritaet)) fehler.push("Priorität muss Must, Should, Could oder Won't sein.");
+  for (const [k, g] of Object.entries(GRENZEN))
+    if ((e[k] || "").length > g) fehler.push(NAMEN[k] + " darf höchstens " + g + " Zeichen lang sein.");
+  return fehler;
+}
+function rueckfrageGruende(e) {
+  const g = [];
+  if (e.rueckfrage) g.push("Das Projektmanagement fragt: " + e.rueckfrage);
+  if (e.prioritaet === "Must" && !e.akzeptanzkriterium)
+    g.push("Bei Must fehlt das Akzeptanzkriterium (woran erkennt man, dass es erfüllt ist?).");
+  if (!e.ansprechperson) g.push("Es fehlt eine Ansprechperson (Teamname oder Funktionspostfach).");
+  return g;
+}
+function status(e) {
+  if (rueckfrageGruende(e).length) return "Rückfrage";
+  return e.bestaetigt ? "Priorisiert" : "Vollständig";
+}
+const norm = t => t.split(/\s+/).filter(Boolean).join(" ").toLowerCase();
+function warnungen(e, alle, eigeneId) {
+  const w = [];
+  if (alle.some(x => norm(x.titel) === norm(e.titel) && x.id !== eigeneId)) w.push("Es gibt bereits eine Anforderung mit diesem Titel.");
+  if ((e.ansprechperson || "").includes(" "))
+    w.push("Die Ansprechperson sieht nach einem Namen aus. Bitte ein Funktionspostfach oder einen Teamnamen verwenden.");
+  return w;
+}
+
+// ---------- Speicher (localStorage) ----------
+let daten = [];
+function speichern() { try { localStorage.setItem(KEY, JSON.stringify(daten)); } catch (e) {} }
+async function laden() {
+  let gespeichert = null;
+  try { gespeichert = localStorage.getItem(KEY); } catch (e) {}
+  if (gespeichert) { daten = JSON.parse(gespeichert); return; }
+  await beispieldaten();
+}
+async function beispieldaten() {
+  try { daten = await (await fetch("daten.json")).json(); } catch (e) { daten = []; }
+  speichern();
+}
+
+// ---------- Oberfläche ----------
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+const app = document.getElementById("app");
+let flash = {ok: "", warn: [], fehler: ""};
+const meldungen = (l, k) => l.length ? `<div class="${k}"><ul>${l.map(m => `<li>${esc(m)}</li>`).join("")}</ul></div>` : "";
+const badge = e => `<span class="badge ${KLASSE[status(e)]}">${status(e)}</span>`;
+const prioOptionen = (aktuell, leer) => (leer ? '<option value="">– bitte wählen –</option>' : "") +
+  PRIOS.map(p => `<option value="${esc(p)}"${aktuell === p ? " selected" : ""}>${esc(p)} – ${PRIO_TEXT[p]}</option>`).join("");
+
+function felder(w) {
+  const g = GRENZEN, v = k => esc(w[k] || "");
+  return `
+<label for="titel">Titel (Pflicht)</label>
+<p class="hint">Kurz und aussagekräftig, zum Beispiel „Export als PDF“. Höchstens ${g.titel} Zeichen.</p>
+<input id="titel" name="titel" maxlength="${g.titel}" value="${v("titel")}">
+<label for="nutzen">Nutzen (Pflicht)</label>
+<p class="hint">Was bringt das, und für wen? Höchstens ${g.nutzen} Zeichen.</p>
+<textarea id="nutzen" name="nutzen" rows="3" maxlength="${g.nutzen}">${v("nutzen")}</textarea>
+<label for="prioritaet">Wie wichtig ist es? (Pflicht)</label>
+<p class="hint">Ihr Vorschlag. Das Projektmanagement bestätigt oder ändert ihn.</p>
+<select id="prioritaet" name="prioritaet">${prioOptionen(w.prioritaet, true)}</select>
+<label for="ansprechperson">Ansprechperson (empfohlen)</label>
+<p class="hint">Teamname oder Funktionspostfach, zum Beispiel „team-berichte“. Bitte keinen Personennamen. Ohne Angabe kommt eine Rückfrage.</p>
+<input id="ansprechperson" name="ansprechperson" value="${v("ansprechperson")}">
+<label for="akzeptanzkriterium">Akzeptanzkriterium (bei Must Pflicht)</label>
+<p class="hint">Woran erkennen wir, dass die Anforderung erfüllt ist? Höchstens ${g.akzeptanzkriterium} Zeichen.</p>
+<textarea id="akzeptanzkriterium" name="akzeptanzkriterium" rows="2" maxlength="${g.akzeptanzkriterium}">${v("akzeptanzkriterium")}</textarea>
+<button class="haupt" type="submit">Speichern</button> <a class="knopf" href="#/">Abbrechen</a>`;
+}
+
+function seite(titel, inhalt) { app.innerHTML = `<h1>${esc(titel)}</h1>${inhalt}`; }
+const formDaten = form => Object.fromEntries(new FormData(form).entries());
+const gehe = (h) => { if (location.hash === h) route(); else location.hash = h; };
+
+function uebersicht() {
+  let kopf = '<p class="info">Hier sehen Sie alle erfassten Anforderungen. Etwas fehlt noch? Klicken Sie oben auf „Neue Anforderung erfassen“. Einträge mit rotem Rand brauchen noch Angaben von Ihnen.</p>';
+  if (flash.ok) kopf += `<div class="erfolg">${esc(flash.ok)}</div>`;
+  kopf += meldungen(flash.warn, "warnung");
+  flash = {ok: "", warn: [], fehler: ""};
+  if (!daten.length) return seite("Übersicht", kopf + '<p>Noch keine Anforderungen erfasst</p><a class="knopf haupt" href="#/neu">Erste Anforderung erfassen</a>');
+  let t = kopf;
+  for (const prio of PRIOS) {
+    t += `<h2>${esc(prio)}</h2><p class="hint">${PRIO_TEXT[prio]}</p>`;
+    const gruppe = daten.filter(e => e.prioritaet === prio).sort((a, b) => a.id - b.id);
+    if (!gruppe.length) t += "<p>Keine Einträge</p>";
+    for (const e of gruppe) {
+      const s = status(e), d = [];
+      if (e.ansprechperson) d.push("Ansprechperson: " + esc(e.ansprechperson));
+      if (e.akzeptanzkriterium) d.push("Akzeptanzkriterium: " + esc(e.akzeptanzkriterium));
+      const klein = d.length ? `<div class="klein">${d.join(" · ")}</div>` : "";
+      let todo, knopf;
+      if (s === "Rückfrage") {
+        todo = `<div><strong>Das fehlt noch:</strong><ul>${rueckfrageGruende(e).map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>`;
+        knopf = `<a class="knopf haupt" href="#/bearbeiten/${e.id}">Angaben ergänzen</a>`;
+      } else {
+        todo = `<div class="klein">${STATUS_TEXT[s]}</div>`;
+        knopf = `<a class="knopf" href="#/bearbeiten/${e.id}">Bearbeiten</a>`;
+      }
+      t += `<div class="karte ${KLASSE[s]}"><strong>${esc(e.titel)}</strong> ${badge(e)}<div>${esc(e.nutzen)}</div>${klein}${todo}${knopf}</div>`;
+    }
+  }
+  seite("Übersicht", t);
+}
+
+function formularSeite(titel, werte, fehler, id) {
+  const hinweis = id && status(werte) === "Rückfrage" && !fehler.length
+    ? `<div class="warnung"><strong>Bitte ergänzen:</strong><ul>${rueckfrageGruende(werte).map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>`
+    : (id ? "" : '<p class="info">Felder mit „Pflicht“ müssen ausgefüllt sein, sonst wird nichts gespeichert.</p>');
+  seite(titel, hinweis + meldungen(fehler, "fehler") + `<form id="f">${felder(werte)}</form>`);
+  document.getElementById("f").addEventListener("submit", ev => {
+    ev.preventDefault();
+    const e = bereinigen(formDaten(ev.target)), f = validieren(e);
+    if (f.length) return formularSeite(titel, e, f, id);
+    const warn = warnungen(e, daten, id);
+    if (id) {
+      Object.assign(daten.find(x => x.id === id), e, {rueckfrage: "", bestaetigt: false});
+      flash = {ok: "Änderung gespeichert.", warn, fehler: ""};
+    } else {
+      daten.push({...e, id: Math.max(0, ...daten.map(x => x.id)) + 1, rueckfrage: "", bestaetigt: false});
+      flash = {ok: "Anforderung gespeichert.", warn, fehler: ""};
+    }
+    speichern(); gehe("#/");
+  });
+}
+
+function pm() {
+  const offen = daten.filter(e => ["Rückfrage", "Vollständig"].includes(status(e))).sort((a, b) => a.id - b.id);
+  let t = '<p class="info">Nur für das Projektmanagement: Prüfen Sie die Einträge, stellen Sie bei Bedarf eine Rückfrage oder bestätigen Sie die Priorität. Bestätigen geht nur bei Status „Vollständig“.</p>';
+  if (flash.fehler) t += meldungen([flash.fehler], "fehler");
+  if (flash.ok) t += `<div class="erfolg">${esc(flash.ok)}</div>`;
+  flash = {ok: "", warn: [], fehler: ""};
+  if (!offen.length) t += "<p>Keine Einträge zu prüfen.</p>";
+  for (const e of offen) {
+    const s = status(e);
+    t += `<div class="karte ${KLASSE[s]}"><strong>${esc(e.titel)}</strong> ${badge(e)}<div>${esc(e.nutzen)}</div>
+<div class="klein">${STATUS_TEXT[s]}</div>
+<form data-id="${e.id}"><label>Rückfrage an den Fachbereich (leer lassen, wenn keine nötig)</label>
+<textarea name="rueckfrage" rows="2" maxlength="${GRENZEN.rueckfrage}">${esc(e.rueckfrage || "")}</textarea>
+<label>Priorität</label><select name="prioritaet">${prioOptionen(e.prioritaet, false)}</select>
+<button type="button" data-aktion="rueckfrage">Rückfrage stellen</button>
+<button type="button" class="haupt" data-aktion="bestaetigen">Priorität bestätigen</button></form></div>`;
+  }
+  seite("Für das Projektmanagement", t);
+  app.querySelectorAll("form[data-id] button").forEach(b => b.addEventListener("click", () => {
+    const form = b.form, e = daten.find(x => x.id === Number(form.dataset.id)), d = formDaten(form);
+    const prio = d.prioritaet || e.prioritaet;
+    if (b.dataset.aktion === "rueckfrage") {
+      const text = (d.rueckfrage || "").trim();
+      const f = validieren({...e, rueckfrage: text});
+      if (!text) f.push("Bitte einen Rückfragetext eingeben.");
+      if (f.length) flash.fehler = f[0];
+      else { Object.assign(e, {rueckfrage: text, prioritaet: prio, bestaetigt: false}); flash.ok = "Rückfrage gespeichert."; }
+    } else if (status({...e, prioritaet: prio, rueckfrage: "", bestaetigt: false}) !== "Vollständig") {
+      flash.fehler = "Bestätigen ist nur bei Status Vollständig möglich.";
+    } else {
+      Object.assign(e, {prioritaet: prio, rueckfrage: "", bestaetigt: true}); flash.ok = "Priorität bestätigt.";
+    }
+    speichern(); pm();
+  }));
+}
+
+function route() {
+  const h = location.hash.replace(/^#/, "") || "/";
+  let m;
+  if (h === "/neu") formularSeite("Neue Anforderung erfassen", {}, [], null);
+  else if (h === "/pm") pm();
+  else if ((m = h.match(/^\/bearbeiten\/(\d+)$/))) {
+    const e = daten.find(x => x.id === Number(m[1]));
+    e ? formularSeite("Anforderung bearbeiten", e, [], e.id) : seite("Nicht gefunden", "<p>Diese Anforderung gibt es nicht.</p>");
+  } else uebersicht();
+}
+
+document.getElementById("reset").addEventListener("click", async ev => {
+  ev.preventDefault();
+  if (!confirm("Alle eigenen Einträge in diesem Browser gehen verloren. Beispieldaten neu laden?")) return;
+  await beispieldaten(); flash.ok = "Beispieldaten geladen."; gehe("#/");
+});
+window.addEventListener("hashchange", route);
+laden().then(route);
+</script></body></html>
