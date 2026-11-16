@@ -178,3 +178,25 @@ def test_bearbeiten_aendert_bestaetigung_zurueck(daten, client):
 
 def test_unbekannte_id_gibt_404(daten, client):
     assert client.get("/bearbeiten/999").status_code == 404
+
+
+# --- Verständlichkeit -------------------------------------------------------
+
+def test_rueckfrage_gruende_im_klartext():
+    e = {**GUELTIG, "prioritaet": "Must", "akzeptanzkriterium": "", "ansprechperson": ""}
+    gruende = regeln.rueckfrage_gruende(e)
+    assert len(gruende) == 2
+    assert any("Akzeptanzkriterium" in g for g in gruende) and any("Ansprechperson" in g for g in gruende)
+    assert regeln.rueckfrage_gruende(GUELTIG) == []
+
+
+def test_uebersicht_erklaert_was_fehlt_und_prioritaeten(daten, client):
+    html = client.get("/").text
+    assert "Das fehlt noch:" in html and "Angaben ergänzen" in html
+    assert "zwingend nötig" in html  # Must erklärt
+    assert "Neue Anforderung erfassen" in html
+
+
+def test_formular_hat_hinweise_und_erklaerte_prioritaeten(client):
+    html = client.get("/neu").text
+    assert "Pflicht" in html and "Must – zwingend nötig" in html

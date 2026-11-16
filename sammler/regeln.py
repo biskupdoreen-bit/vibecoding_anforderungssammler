@@ -31,13 +31,21 @@ def validieren(eintrag: dict) -> list[str]:
     return fehler
 
 
+def rueckfrage_gruende(eintrag: dict) -> list[str]:
+    """Klartext, was für den Status Rückfrage fehlt."""
+    gruende = []
+    if eintrag.get("rueckfrage"):
+        gruende.append("Das Projektmanagement fragt: " + eintrag["rueckfrage"])
+    if eintrag["prioritaet"] == "Must" and not eintrag.get("akzeptanzkriterium"):
+        gruende.append("Bei Must fehlt das Akzeptanzkriterium (woran erkennt man, dass es erfüllt ist?).")
+    if not eintrag.get("ansprechperson"):
+        gruende.append("Es fehlt eine Ansprechperson (Teamname oder Funktionspostfach).")
+    return gruende
+
+
 def status(eintrag: dict) -> str:
     """Status wird immer aus den Angaben berechnet, nie gespeichert."""
-    if eintrag.get("rueckfrage"):
-        return "Rückfrage"
-    if eintrag["prioritaet"] == "Must" and not eintrag.get("akzeptanzkriterium"):
-        return "Rückfrage"
-    if not eintrag.get("ansprechperson"):
+    if rueckfrage_gruende(eintrag):
         return "Rückfrage"
     if eintrag.get("bestaetigt"):
         return "Priorisiert"
